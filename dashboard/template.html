@@ -1,0 +1,344 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Australian hazard stream</title>
+<link rel="stylesheet" href="https://unpkg.com/maplibre-gl@5.6.1/dist/maplibre-gl.css" />
+<script src="https://unpkg.com/maplibre-gl@5.6.1/dist/maplibre-gl.js"></script>
+<style>
+  :root {
+    --navy: #0b1f33;
+    --navy-2: #14324c;
+    --paper: #f4f0e6;
+    --card: #fffdf8;
+    --ink: #1b2430;
+    --muted: #5d6b7a;
+    --line: #e4dccf;
+    --teal: #0f6e6b;
+    --teal-soft: #d7efed;
+    --ember: #d86b2a;
+    --ember-soft: #fde6d4;
+    --ok: #1f7a4d;
+    --ok-bg: #e5f4ec;
+    --warn: #8a5a00;
+    --warn-bg: #fff1d2;
+    --bad: #8e2f3a;
+    --bad-bg: #fbe4e7;
+    --gold: #b5812f;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    color: var(--ink);
+    background: var(--paper);
+    font: 16px/1.5 "Segoe UI", "Helvetica Neue", sans-serif;
+  }
+  header {
+    background: var(--navy);
+    color: #f7f4ee;
+    padding: 22px 28px 18px;
+  }
+  header h1 {
+    margin: 0;
+    font-family: Georgia, "Iowan Old Style", serif;
+    font-weight: 500;
+    font-size: 1.7rem;
+    letter-spacing: -0.02em;
+  }
+  header p { margin: 6px 0 0; color: #c9d5e2; max-width: 70ch; }
+  .head-row { display: flex; justify-content: space-between; gap: 16px; flex-wrap: wrap; align-items: flex-end; }
+  .pills { display: flex; gap: 8px; flex-wrap: wrap; }
+  .pill {
+    border: 1px solid rgba(255,255,255,.25);
+    border-radius: 999px;
+    padding: 4px 10px;
+    font-size: 0.82rem;
+    color: #e7eef6;
+  }
+  .pill strong { font-weight: 650; }
+  main { padding: 18px 22px 40px; max-width: 1240px; margin: 0 auto; }
+  .kpis { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+  .card {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    padding: 14px 14px 12px;
+    box-shadow: 0 1px 0 rgba(11,31,51,.04);
+  }
+  .card h2 { margin: 0; font-size: 0.78rem; letter-spacing: .04em; text-transform: uppercase; color: var(--muted); font-weight: 650; }
+  .card .num { font-family: Georgia, serif; font-size: 1.7rem; margin: 4px 0 0; }
+  .card .sub { color: var(--muted); font-size: 0.86rem; }
+  .badge { display: inline-block; border-radius: 999px; padding: 1px 8px; font-size: 0.75rem; font-weight: 700; letter-spacing: .03em; text-transform: uppercase; }
+  .ok { background: var(--ok-bg); color: var(--ok); }
+  .warn { background: var(--warn-bg); color: var(--warn); }
+  .bad { background: var(--bad-bg); color: var(--bad); }
+  .layout { display: grid; grid-template-columns: 1.5fr 1fr; gap: 12px; margin-top: 12px; }
+  #map { height: 520px; border-radius: 14px; border: 1px solid var(--line); }
+  .panel h3, .wide h3, .chart-card h3 { margin: 0 0 8px; font-family: Georgia, serif; font-weight: 500; font-size: 1.15rem; }
+  .toggles { display: flex; gap: 8px; margin-bottom: 8px; }
+  .toggles button {
+    border: 1px solid var(--line); background: white; border-radius: 999px; padding: 4px 10px; cursor: pointer;
+  }
+  .toggles button.on-quake { background: var(--teal); color: white; border-color: var(--teal); }
+  .toggles button.on-hot { background: var(--ember); color: white; border-color: var(--ember); }
+  .note { font-size: 0.9rem; color: var(--ink); }
+  .note li { margin: 6px 0; }
+  .charts { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 12px; }
+  .chart-card svg { width: 100%; height: auto; }
+  table { width: 100%; border-collapse: collapse; font-size: 0.86rem; }
+  th, td { text-align: left; padding: 6px 6px; border-bottom: 1px solid var(--line); }
+  th { color: var(--muted); font-weight: 650; }
+  footer { color: var(--muted); font-size: 0.82rem; margin-top: 18px; }
+  footer a { color: var(--teal); }
+  .map-wrap { position: relative; }
+  .legend {
+    position: absolute; z-index: 2; left: 10px; bottom: 28px; background: rgba(255,253,248,.94);
+    border-radius: 10px; padding: 8px 10px; font-size: 0.78rem; border: 1px solid var(--line);
+  }
+  .swatch { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 4px; }
+  @media (max-width: 860px) {
+    .kpis, .layout, .charts { grid-template-columns: 1fr; }
+    #map { height: 420px; }
+    header { padding: 16px; }
+    main { padding: 12px; }
+  }
+</style>
+</head>
+<body>
+<header>
+  <div class="head-row">
+    <div>
+      <h1>Australian hazard stream</h1>
+      <p>Earthquakes and satellite hotspots for situational awareness. Not a warning service. Last refreshed <span id="built"></span>.</p>
+    </div>
+    <div class="pills" id="pills"></div>
+  </div>
+</header>
+<main>
+  <section class="kpis" id="kpis"></section>
+  <section class="layout">
+    <div class="card map-wrap">
+      <div class="toggles">
+        <button id="btn-quake" class="on-quake" type="button">Quakes, last 12 months</button>
+        <button id="btn-hot" class="on-hot" type="button">Hotspots, ~72 hours</button>
+      </div>
+      <div id="map"></div>
+      <div class="legend"><span class="swatch" style="background:#0f6e6b"></span>Quake H3 res-4 &nbsp; <span class="swatch" style="background:#d86b2a"></span>Hotspot H3 res-4 &nbsp; <span class="swatch" style="background:#14324c"></span>Gippsland events</div>
+    </div>
+    <div class="card panel">
+      <h3>What this means</h3>
+      <p class="note" id="headline"></p>
+      <ul class="note" id="points"></ul>
+    </div>
+  </section>
+  <section class="charts">
+    <div class="card chart-card"><h3>Australian M≥2 earthquakes by week</h3><div id="ts"></div><p class="sub">Points are weeks with at least one event. The dashed line is the median week from 2006 to 25 Sep 2026, empty weeks included, so it sits near zero.</p></div>
+    <div class="card chart-card"><h3>South Gippsland magnitude counts</h3><div id="mf"></div><p class="sub">ML-family counts in 0.1 bins. The b-value on the cards is a maximum-likelihood fit, not the slope of these bars.</p></div>
+    <div class="card chart-card"><h3>Gippsland sequence since September</h3><div id="swarm"></div></div>
+    <div class="card chart-card"><h3>Hotspot detections by state</h3><div id="states"></div><p class="sub">Public feed, about the last 72 hours. Colour is count, not severity.</p></div>
+  </section>
+  <section class="card wide" style="margin-top:12px">
+    <h3>Window comparison and feed latency</h3>
+    <div id="tables"></div>
+  </section>
+  <footer>
+    <p>Sources: U.S. Geological Survey FDSN event service (public domain); Geoscience Australia earthquakes WFS, CC BY 4.0; Digital Earth Australia Hotspots WFS, CC BY 4.0, with BRIGHT/Himawari methods from Engel, Jones and Reinke; Natural Earth admin-1 and populated places (public domain); OurAirports (public domain). Map tiles © OpenStreetMap contributors.</p>
+    <p>News context, not a data source: <a href="https://www.abc.net.au/news/2026-10-28/earthquake-arawata-leongatha-tremors-geoscience-australia/107317128">ABC, 28 Oct 2026, Arawata / Leongatha</a> and <a href="https://www.abc.net.au/news/2026-10-27/earthquake-reported-by-residents-around-adelaide/107312622">ABC, 27 Oct 2026, offshore South Australia</a>. Official alerts remain with Geoscience Australia, emergency services, and the Bureau of Meteorology.</p>
+  </footer>
+</main>
+<script>
+/*__DATA__*/
+const tone = (name) => DATA.tones[name] || "warn";
+document.getElementById("built").textContent = DATA.built_at;
+
+function pill(feed, row) {
+  const fresh = row && row.freshness_minutes != null ? Math.round(row.freshness_minutes) + " min since newest event at ingest" : "no sample";
+  const lag = row && row.p50_minutes != null ? "p50 lag " + Math.round(row.p50_minutes) + " min" : "lag n/a";
+  return `<span class="pill"><strong>${feed}</strong> ${lag}; ${fresh}</span>`;
+}
+document.getElementById("pills").innerHTML = [
+  pill("GA", DATA.kpis.ga),
+  pill("USGS", DATA.kpis.usgs),
+  pill("DEA", DATA.kpis.dea),
+].join("");
+
+function card(title, num, sub, badge, kind) {
+  return `<article class="card"><h2>${title}</h2><div class="num">${num}</div><div class="sub">${sub}</div><div style="margin-top:8px"><span class="badge ${kind}">${badge}</span></div></article>`;
+}
+const g7 = DATA.kpis.gippsland_7d || {};
+const g30 = DATA.kpis.gippsland_30d || {};
+const gs = DATA.kpis.gippsland_swarm || {};
+const big = DATA.kpis.largest || {};
+const hot = DATA.kpis.hotspots || {};
+const ga = DATA.kpis.ga || {};
+document.getElementById("kpis").innerHTML = [
+  card("Gippsland M≥2, 7 days", g7.event_count_m2 ?? "—", `median baseline ${fmt(g7.baseline_median)} · p95 ${fmt(g7.baseline_p95)}`, g7.status || "n/a", tone("g7")),
+  card("Gippsland M≥2, 30 days", g30.event_count_m2 ?? "—", `median baseline ${fmt(g30.baseline_median)} · p95 ${fmt(g30.baseline_p95)}`, g30.status || "n/a", tone("g30")),
+  card("Largest event, 30 days", big.magnitude != null ? "M" + Number(big.magnitude).toFixed(1) : "—", `${big.place || ""} · ${fmtTime(big.origin_time)}`, big.sources || "catalogue", "ok"),
+  card("Gippsland since 26 Sep", gs.event_count_m2 ?? "—", `${gs.event_count_all ?? "—"} of any magnitude · b=${gs.b_value != null ? Number(gs.b_value).toFixed(2) : "n/a"} (n=${gs.b_n ?? "—"})`, gs.status || "n/a", tone("swarm")),
+  card("Hotspots, newest 6 hours", hot.detections_6h ?? "—", `${hot.cells_6h ?? "—"} H3 res-6 cells · ${hot.detections_72h ?? "—"} in the 72 h window`, "72 h feed", "warn"),
+  card("GA publication lag", ga.p50_minutes != null ? Math.round(ga.p50_minutes) + " min" : "n/a", "median creation−origin, last 30 days, lags under 7 days", ga.p50_minutes == null ? "no sample" : (ga.p50_minutes <= 15 ? "within 15 min" : "check SLA"), tone("ga")),
+].join("");
+
+document.getElementById("headline").textContent = DATA.narrative.headline;
+document.getElementById("points").innerHTML = DATA.narrative.points.map((p) => `<li>${p}</li>`).join("");
+
+function fmt(v) { return v == null ? "n/a" : Number(v).toFixed(1); }
+function fmtTime(v) { return v ? String(v).replace("T", " ").slice(0, 16) + " UTC" : ""; }
+
+const map = new maplibregl.Map({
+  container: "map",
+  style: {
+    version: 8,
+    sources: {
+      carto: {
+        type: "raster",
+        tiles: ["https://tile.openstreetmap.org/{z}/{x}/{y}.png"],
+        tileSize: 256,
+        attribution: "© OpenStreetMap contributors"
+      }
+    },
+    layers: [{ id: "carto", type: "raster", source: "carto" }]
+  },
+  center: [134.2, -28.2],
+  zoom: 3.3
+});
+map.addControl(new maplibregl.NavigationControl(), "top-right");
+map.on("load", () => {
+  map.addSource("quakes", { type: "geojson", data: DATA.quake_hexes });
+  map.addSource("hots", { type: "geojson", data: DATA.hot_hexes });
+  map.addLayer({
+    id: "hot-fill", type: "fill", source: "hots",
+    paint: { "fill-color": "#d86b2a", "fill-opacity": ["interpolate", ["linear"], ["get", "value"], 1, 0.15, 500, 0.35, 5000, 0.72] }
+  });
+  map.addLayer({
+    id: "quake-fill", type: "fill", source: "quakes",
+    paint: { "fill-color": "#0f6e6b", "fill-opacity": ["interpolate", ["linear"], ["get", "value"], 1, 0.25, 10, 0.55, 40, 0.8] }
+  });
+  const points = {
+    type: "FeatureCollection",
+    features: DATA.quake_points.map((p) => ({
+      type: "Feature",
+      properties: { mag: p.magnitude, place: p.place, time: p.origin_time },
+      geometry: { type: "Point", coordinates: [p.longitude, p.latitude] }
+    }))
+  };
+  map.addSource("gipps", { type: "geojson", data: points });
+  map.addLayer({
+    id: "gipps", type: "circle", source: "gipps",
+    paint: {
+      "circle-radius": ["interpolate", ["linear"], ["get", "mag"], 1, 4, 5, 12],
+      "circle-color": "#14324c",
+      "circle-stroke-width": 1,
+      "circle-stroke-color": "#fff"
+    }
+  });
+  for (const id of ["quake-fill", "hot-fill", "gipps"]) {
+    map.on("click", id, (event) => {
+      const f = event.features && event.features[0];
+      if (!f) return;
+      const p = f.properties;
+      const html = p.place ? `<strong>M${Number(p.mag).toFixed(1)}</strong><br>${p.place}<br>${fmtTime(p.time)}` : `<strong>${p.label || p.h3}</strong><br>${p.value} events`;
+      new maplibregl.Popup().setLngLat(event.lngLat).setHTML(html).addTo(map);
+    });
+    map.on("mouseenter", id, () => { map.getCanvas().style.cursor = "pointer"; });
+    map.on("mouseleave", id, () => { map.getCanvas().style.cursor = ""; });
+  }
+});
+function toggle(id, btn, onClass) {
+  const vis = map.getLayoutProperty(id, "visibility") !== "none";
+  map.setLayoutProperty(id, "visibility", vis ? "none" : "visible");
+  btn.classList.toggle(onClass, !vis);
+}
+document.getElementById("btn-quake").onclick = () => toggle("quake-fill", document.getElementById("btn-quake"), "on-quake");
+document.getElementById("btn-hot").onclick = () => toggle("hot-fill", document.getElementById("btn-hot"), "on-hot");
+
+function lineChart(target, rows, yKey, base) {
+  const w = 560, h = 220, pad = 28;
+  if (!rows.length) { target.textContent = "No rows."; return; }
+  const ys = rows.map((r) => Number(r[yKey]) || 0);
+  const max = Math.max(...ys, base || 0, 1);
+  const step = (w - pad * 2) / Math.max(rows.length - 1, 1);
+  const coords = ys.map((y, i) => [pad + i * step, h - pad - (y / max) * (h - pad * 2)]);
+  const d = coords.map((p, i) => (i ? "L" : "M") + p[0].toFixed(1) + " " + p[1].toFixed(1)).join(" ");
+  const baseY = h - pad - ((base || 0) / max) * (h - pad * 2);
+  target.innerHTML = `<svg viewBox="0 0 ${w} ${h}" role="img">
+    <line x1="${pad}" y1="${baseY}" x2="${w - pad}" y2="${baseY}" stroke="#b5812f" stroke-dasharray="4 4"/>
+    <path d="${d}" fill="none" stroke="#0f6e6b" stroke-width="2"/>
+    ${coords.map((p, i) => `<circle cx="${p[0]}" cy="${p[1]}" r="2.5" fill="#0f6e6b"><title>${String(rows[i].week).slice(0,10)}: ${ys[i]}</title></circle>`).join("")}
+  </svg>`;
+}
+lineChart(document.getElementById("ts"), DATA.weekly, "n", DATA.weekly_baseline);
+
+function bars(target, rows, color) {
+  const w = 560, h = 220, pad = 28;
+  if (!rows.length) { target.textContent = "No rows."; return; }
+  const max = Math.max(...rows.map((r) => r.n), 1);
+  const bw = (w - pad * 2) / rows.length;
+  target.innerHTML = `<svg viewBox="0 0 ${w} ${h}" role="img">` + rows.map((r, i) => {
+    const bh = (r.n / max) * (h - pad * 2);
+    const x = pad + i * bw;
+    const y = h - pad - bh;
+    return `<rect x="${x + 1}" y="${y}" width="${Math.max(bw - 2, 1)}" height="${bh}" fill="${color}"><title>M${r.mag_bin}: ${r.n}</title></rect>`;
+  }).join("") + `</svg>`;
+}
+bars(document.getElementById("mf"), DATA.magnitude.filter((r) => r.scope === "south_gippsland_swarm"), "#14324c");
+
+(function swarm() {
+  const rows = DATA.swarm_events;
+  const target = document.getElementById("swarm");
+  if (!rows.length) { target.textContent = "No events."; return; }
+  const w = 560, h = 220, pad = 32;
+  const t0 = Date.parse(rows[0].origin_time);
+  const t1 = Date.parse(rows[rows.length - 1].origin_time) || t0 + 1;
+  const mags = rows.map((r) => Number(r.magnitude));
+  const minM = Math.min(...mags) - 0.2, maxM = Math.max(...mags) + 0.2;
+  const circles = rows.map((r) => {
+    const x = pad + ((Date.parse(r.origin_time) - t0) / (t1 - t0 || 1)) * (w - pad * 2);
+    const y = h - pad - ((Number(r.magnitude) - minM) / (maxM - minM)) * (h - pad * 2);
+    return `<circle cx="${x}" cy="${y}" r="${3 + Number(r.magnitude)}" fill="#0f6e6b" fill-opacity="0.8"><title>${r.place} M${Number(r.magnitude).toFixed(1)} ${fmtTime(r.origin_time)}</title></circle>`;
+  }).join("");
+  target.innerHTML = `<svg viewBox="0 0 ${w} ${h}" role="img">${circles}</svg>`;
+})();
+
+(function states() {
+  const rows = DATA.states.slice(0, 8);
+  const target = document.getElementById("states");
+  const w = 560, h = 220, pad = 36;
+  const max = Math.max(...rows.map((r) => r.detections), 1);
+  const bh = (h - pad * 2) / rows.length;
+  target.innerHTML = `<svg viewBox="0 0 ${w} ${h}" role="img">` + rows.map((r, i) => {
+    const y = pad + i * bh;
+    const bw = (r.detections / max) * (w - 140);
+    return `<text x="0" y="${y + 12}" font-size="12" fill="#1b2430">${r.state}</text>
+      <rect x="110" y="${y}" width="${bw}" height="${bh - 6}" fill="#d86b2a"><title>${r.state}: ${r.detections}; near pop ${r.near_population}; near airport ${r.near_airport}</title></rect>`;
+  }).join("") + `</svg>`;
+})();
+
+function table(rows, cols) {
+  const head = `<tr>${cols.map((c) => `<th>${c[0]}</th>`).join("")}</tr>`;
+  const body = rows.map((r) => `<tr>${cols.map((c) => `<td>${c[1](r)}</td>`).join("")}</tr>`).join("");
+  return `<table>${head}${body}</table>`;
+}
+document.getElementById("tables").innerHTML =
+  `<h3 style="font-size:1rem">Activity versus baseline</h3>` +
+  table(DATA.swarm_table, [
+    ["Scope", (r) => r.scope],
+    ["M≥2", (r) => r.event_count_m2],
+    ["Any mag", (r) => r.event_count_all],
+    ["Median", (r) => fmt(r.baseline_median)],
+    ["p95", (r) => fmt(r.baseline_p95)],
+    ["Status", (r) => `<span class="badge ${r.status === "unusual" ? "bad" : r.status === "elevated" ? "warn" : "ok"}">${r.status}</span>`],
+  ]) +
+  `<h3 style="font-size:1rem;margin-top:14px">Feed latency</h3>` +
+  table(DATA.latency, [
+    ["Feed", (r) => r.feed],
+    ["n", (r) => r.n],
+    ["p50 min", (r) => fmt(r.p50_minutes)],
+    ["p95 min", (r) => fmt(r.p95_minutes)],
+    ["Freshness min", (r) => r.freshness_minutes == null ? "n/a" : Math.round(r.freshness_minutes)],
+  ]);
+</script>
+</body>
+</html>

@@ -1,0 +1,36 @@
+name: ci
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+          python-version: "3.12"
+      - name: Install
+        run: uv sync --frozen --all-groups
+      - name: Lint
+        run: |
+          uv run ruff check src tests --ignore E501
+          uv run ruff format --check src tests
+          uv run mypy
+      - name: Unit tests
+        run: uv run pytest
+      - name: Replay snapshot through the consumer
+        run: uv run python -m aus_hazard.pipeline
+      - name: dbt build
+        run: uv run python -m aus_hazard.publish
+      - name: Dashboard and quality
+        run: |
+          uv run python -m aus_hazard.dashboard
+          uv run python -m aus_hazard.quality
+      - name: Dagster definitions load
+        run: uv run dagster definitions validate -m aus_hazard.definitions

@@ -1,0 +1,43 @@
+name: aus_hazard
+version: "1.0.0"
+config-version: 2
+profile: aus_hazard
+
+model-paths: ["models"]
+test-paths: ["tests"]
+seed-paths: ["seeds"]
+macro-paths: ["macros"]
+target-path: "target"
+clean-targets: ["target", "dbt_packages"]
+
+on-run-start:
+  - "INSTALL spatial"
+  - "LOAD spatial"
+  - "SET geometry_always_xy = true"
+
+vars:
+  swarm_start: "2026-09-26 00:00:00"
+  mag_floor: 2.0
+  gippsland_min_lat: -38.70
+  gippsland_max_lat: -38.15
+  gippsland_min_lon: 145.55
+  gippsland_max_lon: 146.30
+  mc_correction: 0.2
+  mag_bin: 0.1
+
+models:
+  aus_hazard:
+    +materialized: table
+    staging:
+      +materialized: view
+    marts:
+      fct_earthquake:
+        +materialized: incremental
+        +incremental_strategy: delete+insert
+        +unique_key: event_id
+        +on_schema_change: sync_all_columns
+      fct_hotspot:
+        +materialized: incremental
+        +incremental_strategy: delete+insert
+        +unique_key: hotspot_id
+        +on_schema_change: sync_all_columns

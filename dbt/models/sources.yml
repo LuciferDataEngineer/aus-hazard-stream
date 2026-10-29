@@ -1,0 +1,26 @@
+version: 2
+
+sources:
+  - name: silver
+    description: >
+      Parquet written by the replay consumer after contract checks, version
+      upserts, GA/USGS matching, H3 indexing, and the spatial join. CI reads
+      the committed snapshot and does not call the feeds.
+    schema: main
+    tables:
+      - name: quakes
+        description: One row per deduplicated earthquake. GA is canonical when both networks recorded it.
+        loaded_at_field: ingested_at
+        freshness:
+          warn_after: {count: 24, period: hour}
+          error_after: {count: 21, period: day}
+        meta:
+          external_location: "read_parquet('{{ env_var('AUS_HAZARD_ROOT') }}/data/silver/quakes.parquet')"
+      - name: hotspots
+        description: DEA hotspot detections from the public 72-hour WFS window.
+        loaded_at_field: ingested_at
+        freshness:
+          warn_after: {count: 6, period: hour}
+          error_after: {count: 3, period: day}
+        meta:
+          external_location: "read_parquet('{{ env_var('AUS_HAZARD_ROOT') }}/data/silver/hotspots.parquet')"

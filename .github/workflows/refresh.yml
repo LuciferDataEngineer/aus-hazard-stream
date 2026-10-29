@@ -1,0 +1,56 @@
+name: refresh
+
+on:
+  schedule:
+    - cron: "0 */6 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+          python-version: "3.12"
+      - name: Install
+        run: uv sync --frozen --all-groups
+      - name: Pull feeds and rebuild
+        id: refresh
+        run: |
+          set +e
+          uv run python -m aus_hazard.refresh
+          code=$?
+          set -e
+          if [ "$code" -ne 0 ]; then
+            echo "Refresh hit an unexpected error ($code). Exiting without a failed deploy."
+            echo "ok=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if [ -f data/refresh_status.json ] && grep -q '"ok": false' data/refresh_status.json; then
+            echo "Feeds were down. Leaving the published dashboard as it is."
+            echo "ok=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "ok=true" >> "$GITHUB_OUTPUT"
+      - uses: actions/upload-pages-artifact@v3
+        if: steps.refresh.outputs.ok == 'true'
+        with:
+          path: dashboard/dist
+      - id: deployment
+        if: steps.refresh.outputs.ok == 'true'
+        uses: actions/deploy-pages@v4
