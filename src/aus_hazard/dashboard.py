@@ -1,34 +1,41 @@
-"""Build a self-contained static dashboard from the dbt marts."""
+"""Build the public dashboard from the dbt marts.
+
+The page is for readers who are not data engineers. Statistics stay in the
+README and INSIGHTS.md. Every number on the page is queried from a mart.
+"""
 
 from __future__ import annotations
 
 import json
-from datetime import UTC, datetime
+from datetime import datetime, timedelta
 from pathlib import Path
+from typing import Any
 
 import duckdb
 
-from aus_hazard.config import ANALYTICS_DB, DASHBOARD_DIST, SLA
-from aus_hazard.geo import cell_polygon
+from aus_hazard.config import ANALYTICS_DB, DASHBOARD_DIST
 
 TEMPLATE = (Path(__file__).resolve().parents[2] / "dashboard" / "template.html").read_text()
 
+MELBOURNE = timedelta(hours=11)
+ADELAIDE = timedelta(hours=10, minutes=30)
+MONTHS = (
+    "January",
+    "February",
+    "March",
+    "April",
+    "May",
+    "June",
+    "July",
+    "August",
+    "September",
+    "October",
+    "November",
+    "December",
+)
 
-def _tone_status(status: str | None) -> str:
-    return {"unusual": "bad", "elevated": "warn", "typical": "ok"}.get(status or "", "warn")
 
-
-def _tone_minutes(value: float | None, green: float, amber: float) -> str:
-    if value is None:
-        return "warn"
-    if value <= green:
-        return "ok"
-    if value <= amber:
-        return "warn"
-    return "bad"
-
-
-def _rows(con: duckdb.DuckDBPyConnection, sql: str) -> list[dict]:
+def _rows(con: duckdb.DuckDBPyConnection, sql: str) -> list[dict[str, Any]]:
     table = con.execute(sql).to_arrow_table()
     assert table is not None
     rows = table.to_pylist()
@@ -39,297 +46,314 @@ def _rows(con: duckdb.DuckDBPyConnection, sql: str) -> list[dict]:
     return rows
 
 
-def _hexes(con: duckdb.DuckDBPyConnection, sql: str, value_key: str) -> dict:
-    features = []
-    for row in _rows(con, sql):
-        cell = row["h3_res4"]
-        if not cell:
-            continue
-        features.append(
-            {
-                "type": "Feature",
-                "properties": {
-                    "h3": cell,
-                    "value": row[value_key],
-                    "label": row.get("label") or "",
-                },
-                "geometry": {"type": "Polygon", "coordinates": [cell_polygon(cell)]},
-            }
-        )
-    return {"type": "FeatureCollection", "features": features}
+def _clock(moment: datetime, shift: timedelta) -> tuple[datetime, str]:
+    local = moment + shift
+    hour = local.hour
+    suffix = "am" if hour < 12 else "pm"
+    hour12 = hour % 12 or 12
+    text = f"{local.day} {MONTHS[local.month - 1]} {local.year}, {hour12}:{local.minute:02d} {suffix}"
+    return local, text
 
 
-def build_payload(database: Path = ANALYTICS_DB) -> dict:
+def _melbourne(moment: datetime) -> str:
+    _, text = _clock(moment, MELBOURNE)
+    return f"{text} Melbourne time"
+
+
+def _adelaide(moment: datetime) -> str:
+    _, text = _clock(moment, ADELAIDE)
+    return f"{text} Adelaide time"
+
+
+def _people(count: int | None) -> str | None:
+    if count is None or count <= 0:
+        return None
+    if count >= 1000:
+        rounded = int(round(count / 100.0) * 100)
+        return f"About {rounded:,} people reported feeling it"
+    if count >= 10:
+        return f"{count:,} people reported feeling it"
+    return "A few people reported feeling it"
+
+
+def _level(status: str | None) -> str:
+    return {"unusual": "high", "elevated": "elevated", "typical": "calm"}.get(status or "", "calm")
+
+
+def _parse(value: str) -> datetime:
+    text = value.replace("Z", "+00:00")
+    return datetime.fromisoformat(text).replace(tzinfo=None)
+
+
+def build_payload(database: Path = ANALYTICS_DB) -> dict[str, Any]:
     con = duckdb.connect(str(database), read_only=True)
-    swarm = _rows(con, "select * from mart_swarm_activity")
-    by_scope = {row["scope"]: row for row in swarm}
-    gipp = by_scope.get("south_gippsland_swarm") or {}
-    g7 = by_scope.get("south_gippsland_7d") or {}
-    g30 = by_scope.get("south_gippsland_30d") or {}
-    latency = _rows(con, "select * from mart_feed_latency_freshness")
-    by_feed = {row["feed"]: row for row in latency}
-    mag = _rows(
+    swarm = {row["scope"]: row for row in _rows(con, "select * from mart_swarm_activity")}
+    gippsland = swarm["south_gippsland_30d"]
+    australia = swarm["australia_7d"]
+    updated = _parse(_rows(con, "select max(ingested_at) as ingested_at from fct_earthquake")[0]["ingested_at"])
+
+    largest_rows = _rows(
         con,
         """
-        select scope, mag_bin, n, log10_n
-        from mart_magnitude_frequency
-        order by scope, mag_bin
-        """,
-    )
-    largest = _rows(
-        con,
-        """
-        select place, magnitude, mag_type, origin_time, state_name, depth_km, sources
+        select place, magnitude, origin_time, felt_reports, state_name, latitude, longitude
         from fct_earthquake
         where origin_time >= (select max(origin_time) from fct_earthquake) - interval 30 day
-          and latitude <= -11
-          and longitude between 112 and 155
-        order by magnitude desc, state_name is not null desc, origin_time desc
+          and (
+            state_name is not null
+            or place ilike '%VIC%'
+            or place ilike '%NSW%'
+            or place ilike '%QLD%'
+            or place ilike '%TAS%'
+            or place ilike '%Australia%'
+            or place ilike 'Offshore SA%'
+            or place ilike 'Offshore Southern%'
+            or place ilike 'Coastal%'
+          )
+        order by magnitude desc, felt_reports desc nulls last
         limit 1
         """,
     )
-    weekly = _rows(
+    largest = largest_rows[0]
+    largest_time = _parse(largest["origin_time"])
+    felt = _people(largest.get("felt_reports"))
+
+    near = _rows(
         con,
         """
-        with latest as (select max(origin_time) as t from fct_earthquake)
-        select date_trunc('week', origin_time) as week, count(*) as n
-        from fct_earthquake, latest
-        where magnitude >= 2
-          and origin_time >= latest.t - interval 3 year
-        group by 1
-        order by 1
+        with latest as (select max(observed_at) as t from fct_hotspot)
+        select
+            count(*) filter (
+                where near_population and observed_at >= latest.t - interval 6 hour
+            ) as near_recent,
+            count(*) filter (where near_population) as near_window,
+            count(*) as detections
+        from fct_hotspot, latest
         """,
-    )
-    baseline_week = con.execute(
-        """
-        with weeks as (
-            select week_start
-            from generate_series(timestamp '2006-01-02', timestamp '2026-09-19', interval 7 day) t(week_start)
-        ),
-        counts as (
-            select w.week_start, count(q.event_id) as n
-            from weeks w
-            left join fct_earthquake q
-              on q.magnitude >= 2
-             and q.origin_time >= w.week_start
-             and q.origin_time < w.week_start + interval 7 day
+    )[0]
+
+    years_raw = {
+        int(row["y"]): int(row["n"])
+        for row in _rows(
+            con,
+            """
+            select year(origin_time) as y, count(*) as n
+            from fct_earthquake
+            where magnitude >= 2
+              and latitude between -38.70 and -38.15
+              and longitude between 145.55 and 146.30
             group by 1
+            """,
         )
-        select median(n) from counts
-        """
-    ).fetchone()
+    }
+    years = [{"year": year, "count": years_raw.get(year, 0)} for year in range(2006, 2027)]
+
     states = _rows(
         con,
         """
-        select coalesce(state_name, 'Unassigned') as state,
-               count(*) as detections,
-               count(*) filter (where near_population) as near_population,
-               count(*) filter (where near_airport) as near_airport
+        select state_name as state, count(*) as n
         from fct_hotspot
+        where state_name is not null
         group by 1
-        order by detections desc
+        order by n desc
         """,
     )
-    trend = _rows(
+    offshore = _rows(
+        con,
+        "select count(*) as n from fct_hotspot where state_name is null",
+    )[0]["n"]
+
+    sequence = []
+    for row in _rows(
         con,
         """
-        select time_bucket(interval '6 hours', observed_at) as bucket,
-               coalesce(state_name, 'Unassigned') as state,
-               count(*) as n
-        from fct_hotspot
-        group by 1, 2
-        order by 1
-        """,
-    )
-    swarm_events = _rows(
-        con,
-        """
-        select origin_time, magnitude, depth_km, place, mag_type, cluster_id
+        select origin_time, magnitude, place, felt_reports
         from fct_earthquake
-        where in_gippsland_box
-          and origin_time >= timestamp '2026-09-01'
+        where latitude between -38.70 and -38.15
+          and longitude between 145.55 and 146.30
+          and origin_time >= timestamp '2026-09-26'
         order by origin_time
         """,
-    )
-    hotspot_summary = _rows(
+    ):
+        moment = _parse(row["origin_time"])
+        sequence.append(
+            {
+                "time": row["origin_time"],
+                "when": _melbourne(moment),
+                "magnitude": row["magnitude"],
+                "place": row["place"],
+                "felt": _people(row.get("felt_reports")),
+            }
+        )
+
+    quakes = []
+    for row in _rows(
         con,
         """
-        with latest as (select max(observed_at) as t, max(ingested_at) as ingested from fct_hotspot)
-        select
-            (select count(*) from fct_hotspot) as detections_72h,
-            (
-                select count(*) from fct_hotspot, latest
-                where observed_at >= latest.t - interval 6 hour
-            ) as detections_6h,
-            (
-                select count(distinct h3_res6) from fct_hotspot, latest
-                where observed_at >= latest.t - interval 6 hour
-            ) as cells_6h,
-            (select count(*) from fct_hotspot where near_population) as near_population,
-            (select count(*) from fct_hotspot where near_airport) as near_airport,
-            (select count(*) from fct_hotspot where nearest_airport_ident = 'YPPH' and nearest_airport_km <= 25) as near_perth_airport,
-            (select min(nearest_airport_km) from fct_hotspot where nearest_airport_ident = 'YPPH') as closest_perth_airport_km,
-            (select max(observed_at) from fct_hotspot) as last_hotspot,
-            (select max(ingested_at) from fct_hotspot) as ingested
-        """,
-    )[0]
-    quake_hex = _hexes(
-        con,
-        """
-        with latest as (select max(origin_time) as t from fct_earthquake)
-        select h3_res4, count(*) as value,
-               count(*)::varchar || ' quakes, max M' || round(max(magnitude), 1)::varchar as label
-        from fct_earthquake, latest
-        where magnitude >= 2
-          and origin_time >= latest.t - interval 365 day
-        group by 1
-        having count(*) > 0
-        """,
-        "value",
-    )
-    hot_hex = _hexes(
-        con,
-        """
-        select h3_res4, count(*) as value,
-               count(*)::varchar || ' detections' as label
-        from fct_hotspot
-        group by 1
-        order by count(*) desc
-        limit 400
-        """,
-        "value",
-    )
-    quake_points = _rows(
-        con,
-        """
-        select longitude, latitude, magnitude, place, origin_time
+        select longitude, latitude, magnitude, place, origin_time, felt_reports, state_name
         from fct_earthquake
-        where in_gippsland_box and origin_time >= timestamp '2026-09-26'
+        where magnitude >= 2
+          and origin_time >= timestamp '2026-08-01'
+          and (state_name is not null or latitude < -12)
+          and longitude between 110 and 160
+        order by magnitude
         """,
-    )
-    catalog = _rows(
+    ):
+        moment = _parse(row["origin_time"])
+        when = _melbourne(moment)
+        place = row["place"] or "Offshore Australia"
+        if place.startswith("Offshore SA"):
+            when = f"{_adelaide(moment)} ({_melbourne(moment)})"
+        quakes.append(
+            {
+                "lon": row["longitude"],
+                "lat": row["latitude"],
+                "magnitude": round(float(row["magnitude"]), 1),
+                "place": place,
+                "when": when,
+                "felt": _people(row.get("felt_reports")),
+            }
+        )
+
+    fires = []
+    for row in _rows(
         con,
         """
         select
-            (select count(*) from fct_earthquake) as quakes,
-            (select count(*) from fct_earthquake where sources = 'ga+usgs') as matched,
-            (select min(origin_time) from fct_earthquake) as quake_min,
-            (select max(origin_time) from fct_earthquake) as quake_max,
-            (select min(observed_at) from fct_hotspot) as hot_min,
-            (select max(observed_at) from fct_hotspot) as hot_max
+            avg(latitude) as lat,
+            avg(longitude) as lon,
+            count(*) as n,
+            arg_max(
+                nearest_place,
+                case when near_population then coalesce(nearest_place_pop, 0) else -1 end
+            ) as place,
+            count(*) filter (where near_population) as near_towns
+        from fct_hotspot
+        group by h3_res4
+        having count(*) >= 8
+        order by n desc
+        limit 700
         """,
-    )[0]
+    ):
+        place = row["place"] if row["near_towns"] else None
+        fires.append(
+            {
+                "lon": row["lon"],
+                "lat": row["lat"],
+                "n": int(row["n"]),
+                "place": place,
+            }
+        )
+
     con.close()
 
-    ga = by_feed.get("geoscience_australia") or {}
-    dea = by_feed.get("dea_hotspots") or {}
-    usgs = by_feed.get("usgs") or {}
-    built = datetime.now(UTC).strftime("%Y-%m-%d %H:%M UTC")
-    narrative = _narrative(gipp, g7, g30, largest[0] if largest else {}, hotspot_summary, ga, dea)
+    gippsland_n = int(gippsland["event_count_m2"])
+    australia_n = int(australia["event_count_m2"])
+    usual_week = int(round(float(australia["baseline_median"])))
+    near_recent = int(near["near_recent"])
+    near_window = int(near["near_window"])
+    mag = round(float(largest["magnitude"]), 1)
+    when = _melbourne(largest_time)
+
     return {
-        "built_at": built,
-        "catalog": catalog,
-        "kpis": {
-            "gippsland_7d": g7,
-            "gippsland_30d": g30,
-            "gippsland_swarm": gipp,
-            "largest": largest[0] if largest else {},
-            "hotspots": hotspot_summary,
-            "ga": ga,
-            "usgs": usgs,
-            "dea": dea,
-        },
-        "tones": {
-            "g7": _tone_status(g7.get("status")),
-            "g30": _tone_status(g30.get("status")),
-            "swarm": _tone_status(gipp.get("status")),
-            "ga": _tone_minutes(
-                ga.get("p50_minutes"),
-                SLA["ga_publication_minutes"]["green"],
-                SLA["ga_publication_minutes"]["amber"],
-            ),
-            "dea": _tone_minutes(
-                dea.get("p50_minutes"),
-                SLA["hotspot_processing_minutes"]["green"],
-                SLA["hotspot_processing_minutes"]["amber"],
-            ),
-            "hot_fresh": _tone_minutes(
-                (dea.get("freshness_minutes") or 0) / 60 if dea.get("freshness_minutes") is not None else None,
-                SLA["hotspot_freshness_hours"]["green"],
-                SLA["hotspot_freshness_hours"]["amber"],
-            ),
-        },
-        "weekly": weekly,
-        "weekly_baseline": baseline_week[0] if baseline_week else None,
-        "magnitude": mag,
-        "states": states,
-        "trend": trend,
-        "swarm_events": swarm_events,
-        "swarm_table": swarm,
-        "latency": latency,
-        "quake_hexes": quake_hex,
-        "hot_hexes": hot_hex,
-        "quake_points": quake_points,
-        "narrative": narrative,
-        "sla": SLA,
-    }
-
-
-def _fmt(value, digits=1):
-    if value is None:
-        return "n/a"
-    if isinstance(value, float):
-        return f"{value:.{digits}f}"
-    return str(value)
-
-
-def _narrative(gipp: dict, g7: dict, g30: dict, largest: dict, hot: dict, ga: dict, dea: dict) -> dict:
-    status = gipp.get("status") or "unknown"
-    words = {
-        "unusual": "sits at or above the 99th percentile of equal-length windows since 2006",
-        "elevated": "sits at or above the 95th percentile of equal-length windows since 2006",
-        "typical": "is inside the usual range of equal-length windows since 2006",
-        "insufficient_baseline": "does not have a long enough baseline to rank",
-    }.get(status, "is described against the historical windows in the table")
-    b_note = (
-        f"The ML b-value for this window is {_fmt(gipp.get('b_value'), 2)} "
-        f"(n={gipp.get('b_n')}, Mc={_fmt(gipp.get('mc'), 1)}). "
-    )
-    if gipp.get("b_stable"):
-        b_note += (
-            "The sample is large enough for a rough estimate, and it is still only a description of these magnitudes."
-        )
-    else:
-        b_note += "Fewer than 50 events sit at or above Mc, so the b-value is too unstable to lean on. The count comparison is the clearer signal."
-    place = largest.get("place") or "the catalogue"
-    mag = largest.get("magnitude")
-    when = largest.get("origin_time") or ""
-    return {
-        "headline": f"South Gippsland, M≥2 since 26 Sep 2026: {gipp.get('event_count_m2', '—')} events, status {status}.",
-        "points": [
-            f"In the South Gippsland box, the window from 26 Sep 2026 to the newest catalogue event has {gipp.get('event_count_m2', '—')} earthquakes of magnitude 2 or more ({gipp.get('event_count_all', '—')} of any magnitude). That count {words}. The median historical window of the same length has {_fmt(gipp.get('baseline_median'), 1)} events (95th percentile {_fmt(gipp.get('baseline_p95'), 1)}).",
-            f"The last 7 days in that box: {g7.get('event_count_m2', '—')} events M≥2 ({g7.get('status', 'n/a')}). The last 30 days: {g30.get('event_count_m2', '—')} ({g30.get('status', 'n/a')}).",
-            f"Largest catalogue event in the last 30 days of the whole Australian set: M{_fmt(mag, 1)} {largest.get('mag_type') or ''} — {place} at {when} UTC.",
-            b_note,
-            f"The public DEA hotspot feed is a rolling window of about 72 hours, not a seasonal archive. This snapshot has {hot.get('detections_72h', '—')} detections, {hot.get('detections_6h', '—')} in the newest 6 hours ({hot.get('cells_6h', '—')} distinct H3 resolution-6 cells). {hot.get('near_population', '—')} are within 25 km of a Natural Earth place of 10,000 people or more, and {hot.get('near_airport', '—')} are within 20 km of a medium or large airport. Detections within 25 km of Perth Airport (YPPH): {hot.get('near_perth_airport', '—')}.",
-            f"Geoscience Australia median publication lag over the last 30 days (creation time minus origin, lags under 7 days) is {_fmt(ga.get('p50_minutes'), 0)} minutes. DEA median processing lag is {_fmt(dea.get('p50_minutes'), 0)} minutes. These are catalogue timestamps, not a promise about the next alert.",
+        "updated": _melbourne(updated).replace(" Melbourne time", "") + " Melbourne time",
+        "headline": (f"South Gippsland has had {gippsland_n} earthquakes this month. A typical month there has none."),
+        "dek": "The rest of Australia looks like a normal week. This page is not a warning.",
+        "cards": [
+            {
+                "label": "Gippsland, this month",
+                "value": str(gippsland_n),
+                "unit": "earthquakes",
+                "takeaway": "A typical month here has none.",
+                "level": _level(gippsland["status"]),
+                "level_label": {"high": "High", "elevated": "Elevated", "calm": "Calm"}[_level(gippsland["status"])],
+            },
+            {
+                "label": "Australia, this week",
+                "value": str(australia_n),
+                "unit": "earthquakes",
+                "takeaway": f"A usual week in and around Australia has about {usual_week}.",
+                "level": _level(australia["status"]),
+                "level_label": {"high": "High", "elevated": "Elevated", "calm": "Calm"}[_level(australia["status"])],
+            },
+            {
+                "label": "Largest recent quake",
+                "value": str(mag),
+                "unit": "magnitude",
+                "takeaway": f"{largest['place']}. {when}." + (f" {felt}" if felt else ""),
+                "level": "elevated",
+                "level_label": "Elevated",
+            },
+            {
+                "label": "Heat near towns",
+                "value": f"{near_recent:,}",
+                "unit": "in the last few hours",
+                "takeaway": (
+                    f"{near_window:,} satellite detections were near towns over the last three days. "
+                    "These can be fires, or something else that is hot."
+                ),
+                "level": "elevated",
+                "level_label": "Elevated",
+            },
         ],
+        "charts": {
+            "years": {
+                "title": "Gippsland's earthquakes stand out against 20 years",
+                "note": (
+                    "Each bar is a year of earthquakes of magnitude 2 or more near Leongatha. "
+                    f"{years[-1]['count']} have been recorded in 2026, and the year is not finished. "
+                    "2009 and 2012 were busier still."
+                ),
+                "points": years,
+            },
+            "states": {
+                "title": "On land, most of the heat is in the north",
+                "note": (
+                    "Satellite detections over the last three days. "
+                    f"Another {int(offshore):,} were offshore or not tied to a state. "
+                    "A detection is heat, not a confirmed bushfire."
+                ),
+                "points": states,
+            },
+            "sequence": {
+                "title": "The shaking near Leongatha has come in bursts",
+                "note": "Each dot is one earthquake since 26 September. Higher means a larger quake.",
+                "points": sequence,
+            },
+        },
+        "meaning": [
+            "If you are in South Gippsland, more small earthquakes may be felt for a while. If the ground shakes, drop, cover, and hold on.",
+            f"A magnitude {mag} quake near Leongatha on 3 October was widely felt. Feeling one earthquake does not mean a larger one is on the way.",
+            "Orange areas are satellite heat. They can be a bushfire or a false alarm. For what to do, use the official sources below. This page is not a warning service.",
+        ],
+        "links": [
+            {"name": "Geoscience Australia earthquakes", "href": "https://earthquakes.ga.gov.au/"},
+            {"name": "VicEmergency", "href": "https://emergency.vic.gov.au/"},
+            {
+                "name": "How it's built",
+                "href": "https://github.com/LuciferDataEngineer/aus-hazard-stream#how-its-built",
+            },
+        ],
+        "map": {
+            "gippsland": [145.89, -38.42],
+            "australia": [134.2, -28.0],
+            "quakes": quakes,
+            "fires": fires,
+        },
     }
 
 
 def build(database: Path = ANALYTICS_DB) -> Path:
     payload = build_payload(database)
     DASHBOARD_DIST.mkdir(parents=True, exist_ok=True)
-    html = TEMPLATE.replace("/*__DATA__*/", "const DATA = " + json.dumps(payload, default=str) + ";")
+    html = TEMPLATE.replace("/*__DATA__*/", "const DATA = " + json.dumps(payload) + ";")
     target = DASHBOARD_DIST / "index.html"
     target.write_text(html)
-    (DASHBOARD_DIST / "payload.json").write_text(json.dumps(payload, default=str))
+    (DASHBOARD_DIST / "payload.json").write_text(json.dumps(payload))
     return target
 
 
 def main() -> None:
-    path = build()
-    print(path)
+    print(build())
 
 
 if __name__ == "__main__":

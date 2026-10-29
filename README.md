@@ -36,6 +36,10 @@ The operational question is not "did the news happen". It is whether the Gippsla
 
 The ABC's "M4.8 on 3 Oct" is GA **MLa 4.9 at 2026-10-02 16:01 UTC** (03:01 AEDT on 3 Oct), 8 km NW of Leongatha. The M3.5 is **2026-10-27 12:52 UTC** (23:52 AEDT on the 27th), which the 28 Oct story is about. Magnitude types differ between the local network and a news round-number. Both are cited; the catalogue value is the one in the marts.
 
+## How it's built
+
+The [live dashboard](https://luciferdataengineer.github.io/aus-hazard-stream/) is written for the public, emergency managers, and journalists. It states what happened in plain language. The pipeline, contracts, and statistics are documented here and in [INSIGHTS.md](INSIGHTS.md).
+
 ## Architecture
 
 ```mermaid

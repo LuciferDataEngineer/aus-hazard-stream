@@ -3,342 +3,439 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Australian hazard stream</title>
+<title>Earthquakes and bushfire heat in Australia</title>
 <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@5.6.1/dist/maplibre-gl.css" />
 <script src="https://unpkg.com/maplibre-gl@5.6.1/dist/maplibre-gl.js"></script>
 <style>
   :root {
-    --navy: #0b1f33;
-    --navy-2: #14324c;
-    --paper: #f4f0e6;
-    --card: #fffdf8;
-    --ink: #1b2430;
-    --muted: #5d6b7a;
-    --line: #e4dccf;
-    --teal: #0f6e6b;
-    --teal-soft: #d7efed;
-    --ember: #d86b2a;
-    --ember-soft: #fde6d4;
-    --ok: #1f7a4d;
-    --ok-bg: #e5f4ec;
-    --warn: #8a5a00;
-    --warn-bg: #fff1d2;
-    --bad: #8e2f3a;
-    --bad-bg: #fbe4e7;
-    --gold: #b5812f;
+    --ink: #1c1915;
+    --muted: #5e584f;
+    --paper: #f6f1e8;
+    --card: #fffdf9;
+    --line: #e6dccb;
+    --navy: #142033;
+    --quake: #2a2158;
+    --quake-mid: #5c4d93;
+    --quake-soft: #d9d2ee;
+    --fire: #e25b1a;
+    --fire-deep: #9a3412;
+    --fire-soft: #fde4d2;
+    --calm: #1c6b45;
+    --calm-bg: #e5f4eb;
+    --elevated: #8a5a08;
+    --elevated-bg: #fff1d0;
+    --high: #8f2433;
+    --high-bg: #fde4e8;
   }
   * { box-sizing: border-box; }
   body {
     margin: 0;
     color: var(--ink);
     background: var(--paper);
-    font: 16px/1.5 "Segoe UI", "Helvetica Neue", sans-serif;
+    font: 17px/1.5 "Segoe UI", "Helvetica Neue", sans-serif;
   }
+  a { color: var(--quake-mid); }
   header {
     background: var(--navy);
-    color: #f7f4ee;
-    padding: 22px 28px 18px;
+    color: #f7f3ec;
+    padding: 18px 28px 16px;
+    display: flex;
+    justify-content: space-between;
+    gap: 16px;
+    align-items: flex-end;
+    flex-wrap: wrap;
   }
   header h1 {
     margin: 0;
     font-family: Georgia, "Iowan Old Style", serif;
     font-weight: 500;
-    font-size: 1.7rem;
+    font-size: 1.65rem;
     letter-spacing: -0.02em;
   }
-  header p { margin: 6px 0 0; color: #c9d5e2; max-width: 70ch; }
-  .head-row { display: flex; justify-content: space-between; gap: 16px; flex-wrap: wrap; align-items: flex-end; }
-  .pills { display: flex; gap: 8px; flex-wrap: wrap; }
-  .pill {
-    border: 1px solid rgba(255,255,255,.25);
-    border-radius: 999px;
-    padding: 4px 10px;
-    font-size: 0.82rem;
-    color: #e7eef6;
+  header p { margin: 4px 0 0; color: #c9d0da; font-size: 0.95rem; }
+  header a { color: #f3e6cf; }
+  .banner {
+    max-width: 1180px;
+    margin: 18px auto 0;
+    padding: 0 22px;
   }
-  .pill strong { font-weight: 650; }
-  main { padding: 18px 22px 40px; max-width: 1240px; margin: 0 auto; }
-  .kpis { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+  .banner-inner {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-left: 6px solid var(--high);
+    border-radius: 16px;
+    padding: 16px 18px 14px;
+  }
+  .banner h2 {
+    margin: 0;
+    font-family: Georgia, serif;
+    font-weight: 500;
+    font-size: 1.45rem;
+    line-height: 1.25;
+  }
+  .banner p { margin: 6px 0 0; color: var(--muted); }
+  main { max-width: 1180px; margin: 0 auto; padding: 14px 22px 48px; }
+  .cards {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 12px;
+  }
   .card {
     background: var(--card);
     border: 1px solid var(--line);
-    border-radius: 14px;
+    border-radius: 16px;
     padding: 14px 14px 12px;
-    box-shadow: 0 1px 0 rgba(11,31,51,.04);
   }
-  .card h2 { margin: 0; font-size: 0.78rem; letter-spacing: .04em; text-transform: uppercase; color: var(--muted); font-weight: 650; }
-  .card .num { font-family: Georgia, serif; font-size: 1.7rem; margin: 4px 0 0; }
-  .card .sub { color: var(--muted); font-size: 0.86rem; }
-  .badge { display: inline-block; border-radius: 999px; padding: 1px 8px; font-size: 0.75rem; font-weight: 700; letter-spacing: .03em; text-transform: uppercase; }
-  .ok { background: var(--ok-bg); color: var(--ok); }
-  .warn { background: var(--warn-bg); color: var(--warn); }
-  .bad { background: var(--bad-bg); color: var(--bad); }
-  .layout { display: grid; grid-template-columns: 1.5fr 1fr; gap: 12px; margin-top: 12px; }
-  #map { height: 520px; border-radius: 14px; border: 1px solid var(--line); }
-  .panel h3, .wide h3, .chart-card h3 { margin: 0 0 8px; font-family: Georgia, serif; font-weight: 500; font-size: 1.15rem; }
-  .toggles { display: flex; gap: 8px; margin-bottom: 8px; }
-  .toggles button {
-    border: 1px solid var(--line); background: white; border-radius: 999px; padding: 4px 10px; cursor: pointer;
+  .card .label {
+    margin: 0;
+    font-size: 0.78rem;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--muted);
+    font-weight: 700;
   }
-  .toggles button.on-quake { background: var(--teal); color: white; border-color: var(--teal); }
-  .toggles button.on-hot { background: var(--ember); color: white; border-color: var(--ember); }
-  .note { font-size: 0.9rem; color: var(--ink); }
-  .note li { margin: 6px 0; }
-  .charts { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 12px; }
-  .chart-card svg { width: 100%; height: auto; }
-  table { width: 100%; border-collapse: collapse; font-size: 0.86rem; }
-  th, td { text-align: left; padding: 6px 6px; border-bottom: 1px solid var(--line); }
-  th { color: var(--muted); font-weight: 650; }
-  footer { color: var(--muted); font-size: 0.82rem; margin-top: 18px; }
-  footer a { color: var(--teal); }
-  .map-wrap { position: relative; }
+  .card .value {
+    margin: 6px 0 0;
+    font-family: Georgia, serif;
+    font-size: 2.4rem;
+    line-height: 1;
+    letter-spacing: -0.03em;
+  }
+  .card .unit { color: var(--muted); font-size: 0.92rem; margin-top: 4px; }
+  .card .take { margin: 8px 0 0; font-size: 0.95rem; }
+  .pill {
+    display: inline-block;
+    margin-top: 10px;
+    border-radius: 999px;
+    padding: 2px 9px;
+    font-size: 0.75rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+  }
+  .calm { background: var(--calm-bg); color: var(--calm); }
+  .elevated { background: var(--elevated-bg); color: var(--elevated); }
+  .high { background: var(--high-bg); color: var(--high); }
+  .map-card { margin-top: 12px; padding: 12px; position: relative; }
+  .map-bar {
+    display: flex;
+    justify-content: space-between;
+    gap: 10px;
+    align-items: center;
+    flex-wrap: wrap;
+    margin-bottom: 8px;
+  }
+  .map-bar h2 {
+    margin: 0;
+    font-family: Georgia, serif;
+    font-weight: 500;
+    font-size: 1.25rem;
+  }
+  .toggles, .zoom { display: flex; gap: 8px; flex-wrap: wrap; }
+  button {
+    border: 1px solid var(--line);
+    background: white;
+    border-radius: 999px;
+    padding: 6px 12px;
+    font: inherit;
+    font-size: 0.92rem;
+    cursor: pointer;
+  }
+  button.on-quake { background: var(--quake); color: white; border-color: var(--quake); }
+  button.on-fire { background: var(--fire); color: white; border-color: var(--fire); }
+  button.ghost { background: var(--paper); }
+  #map { height: 620px; border-radius: 12px; }
   .legend {
-    position: absolute; z-index: 2; left: 10px; bottom: 28px; background: rgba(255,253,248,.94);
-    border-radius: 10px; padding: 8px 10px; font-size: 0.78rem; border: 1px solid var(--line);
+    display: flex;
+    gap: 16px;
+    flex-wrap: wrap;
+    margin-top: 8px;
+    color: var(--muted);
+    font-size: 0.88rem;
   }
-  .swatch { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 4px; }
-  @media (max-width: 860px) {
-    .kpis, .layout, .charts { grid-template-columns: 1fr; }
+  .dot {
+    display: inline-block;
+    border-radius: 50%;
+    vertical-align: middle;
+    margin-right: 5px;
+  }
+  .charts {
+    display: grid;
+    grid-template-columns: 1.2fr 1fr;
+    gap: 12px;
+    margin-top: 12px;
+  }
+  .charts .wide { grid-column: 1 / -1; }
+  .chart-card h2 {
+    margin: 0 0 4px;
+    font-family: Georgia, serif;
+    font-weight: 500;
+    font-size: 1.2rem;
+  }
+  .note { margin: 0 0 8px; color: var(--muted); font-size: 0.92rem; }
+  svg { width: 100%; height: auto; display: block; }
+  .meaning h2 {
+    margin: 0 0 8px;
+    font-family: Georgia, serif;
+    font-weight: 500;
+    font-size: 1.25rem;
+  }
+  .meaning li { margin: 8px 0; }
+  footer {
+    color: var(--muted);
+    font-size: 0.86rem;
+    margin-top: 8px;
+  }
+  footer p { margin: 8px 0; }
+  .maplibregl-popup-content { font: 15px/1.4 "Segoe UI", sans-serif; border-radius: 12px; padding: 10px 12px; }
+  .maplibregl-popup-content strong { font-family: Georgia, serif; font-size: 1.05rem; }
+  @media (max-width: 980px) {
+    .cards { grid-template-columns: 1fr 1fr; }
+    .charts { grid-template-columns: 1fr; }
+    #map { height: 460px; }
+  }
+  @media (max-width: 640px) {
+    header, .banner, main { padding-left: 14px; padding-right: 14px; }
+    .cards { grid-template-columns: 1fr; }
+    .card .value { font-size: 2.1rem; }
+    .banner h2 { font-size: 1.25rem; }
     #map { height: 420px; }
-    header { padding: 16px; }
-    main { padding: 12px; }
   }
 </style>
 </head>
 <body>
 <header>
-  <div class="head-row">
-    <div>
-      <h1>Australian hazard stream</h1>
-      <p>Earthquakes and satellite hotspots for situational awareness. Not a warning service. Last refreshed <span id="built"></span>.</p>
-    </div>
-    <div class="pills" id="pills"></div>
+  <div>
+    <h1>Earthquakes and bushfire heat</h1>
+    <p>A plain-language picture for Australia. Last updated <span id="updated"></span>.</p>
   </div>
+  <p><a id="built" href="https://github.com/LuciferDataEngineer/aus-hazard-stream#how-its-built">How it's built</a></p>
 </header>
+<div class="banner">
+  <div class="banner-inner">
+    <h2 id="headline"></h2>
+    <p id="dek"></p>
+  </div>
+</div>
 <main>
-  <section class="kpis" id="kpis"></section>
-  <section class="layout">
-    <div class="card map-wrap">
+  <section class="cards" id="cards"></section>
+  <section class="card map-card">
+    <div class="map-bar">
+      <h2>Where it is happening</h2>
       <div class="toggles">
-        <button id="btn-quake" class="on-quake" type="button">Quakes, last 12 months</button>
-        <button id="btn-hot" class="on-hot" type="button">Hotspots, ~72 hours</button>
+        <button id="btn-quake" class="on-quake" type="button">Earthquakes</button>
+        <button id="btn-fire" class="on-fire" type="button">Fire heat</button>
+        <button id="zoom-gipps" class="ghost" type="button">Zoom to Gippsland</button>
+        <button id="zoom-aus" class="ghost" type="button">All of Australia</button>
       </div>
-      <div id="map"></div>
-      <div class="legend"><span class="swatch" style="background:#0f6e6b"></span>Quake H3 res-4 &nbsp; <span class="swatch" style="background:#d86b2a"></span>Hotspot H3 res-4 &nbsp; <span class="swatch" style="background:#14324c"></span>Gippsland events</div>
     </div>
-    <div class="card panel">
-      <h3>What this means</h3>
-      <p class="note" id="headline"></p>
-      <ul class="note" id="points"></ul>
+    <div id="map"></div>
+    <div class="legend">
+      <span><span class="dot" style="width:8px;height:8px;background:#8d82b8"></span><span class="dot" style="width:14px;height:14px;background:#2a2158"></span> Larger dot, larger earthquake</span>
+      <span><span class="dot" style="width:14px;height:14px;background:#e25b1a"></span> Satellite heat. Darker means more detections in that area.</span>
     </div>
   </section>
   <section class="charts">
-    <div class="card chart-card"><h3>Australian M≥2 earthquakes by week</h3><div id="ts"></div><p class="sub">Points are weeks with at least one event. The dashed line is the median week from 2006 to 25 Sep 2026, empty weeks included, so it sits near zero.</p></div>
-    <div class="card chart-card"><h3>South Gippsland magnitude counts</h3><div id="mf"></div><p class="sub">ML-family counts in 0.1 bins. The b-value on the cards is a maximum-likelihood fit, not the slope of these bars.</p></div>
-    <div class="card chart-card"><h3>Gippsland sequence since September</h3><div id="swarm"></div></div>
-    <div class="card chart-card"><h3>Hotspot detections by state</h3><div id="states"></div><p class="sub">Public feed, about the last 72 hours. Colour is count, not severity.</p></div>
+    <article class="card chart-card wide">
+      <h2 id="year-title"></h2>
+      <p class="note" id="year-note"></p>
+      <div id="years"></div>
+    </article>
+    <article class="card chart-card">
+      <h2 id="state-title"></h2>
+      <p class="note" id="state-note"></p>
+      <div id="states"></div>
+    </article>
+    <article class="card chart-card">
+      <h2 id="seq-title"></h2>
+      <p class="note" id="seq-note"></p>
+      <div id="sequence"></div>
+    </article>
   </section>
-  <section class="card wide" style="margin-top:12px">
-    <h3>Window comparison and feed latency</h3>
-    <div id="tables"></div>
+  <section class="card meaning" style="margin-top:12px">
+    <h2>What this means for you</h2>
+    <ul id="meaning"></ul>
+    <p id="official"></p>
   </section>
   <footer>
-    <p>Sources: U.S. Geological Survey FDSN event service (public domain); Geoscience Australia earthquakes WFS, CC BY 4.0; Digital Earth Australia Hotspots WFS, CC BY 4.0, with BRIGHT/Himawari methods from Engel, Jones and Reinke; Natural Earth admin-1 and populated places (public domain); OurAirports (public domain). Map tiles © OpenStreetMap contributors.</p>
-    <p>News context, not a data source: <a href="https://www.abc.net.au/news/2026-10-28/earthquake-arawata-leongatha-tremors-geoscience-australia/107317128">ABC, 28 Oct 2026, Arawata / Leongatha</a> and <a href="https://www.abc.net.au/news/2026-10-27/earthquake-reported-by-residents-around-adelaide/107312622">ABC, 27 Oct 2026, offshore South Australia</a>. Official alerts remain with Geoscience Australia, emergency services, and the Bureau of Meteorology.</p>
+    <p>Earthquake locations come from Geoscience Australia, with some events also reported by the US Geological Survey. Fire heat comes from Digital Earth Australia satellites. Map data © OpenStreetMap contributors.</p>
+    <p>This is not an official warning service. For earthquakes see <a href="https://earthquakes.ga.gov.au/">Geoscience Australia</a>. For fires and local warnings, use your state emergency service, including <a href="https://emergency.vic.gov.au/">VicEmergency</a>.</p>
   </footer>
 </main>
 <script>
 /*__DATA__*/
-const tone = (name) => DATA.tones[name] || "warn";
-document.getElementById("built").textContent = DATA.built_at;
+const levelName = { calm: "Calm", elevated: "Elevated", high: "High" };
+document.getElementById("updated").textContent = DATA.updated;
+document.getElementById("headline").textContent = DATA.headline;
+document.getElementById("dek").textContent = DATA.dek;
+document.getElementById("cards").innerHTML = DATA.cards.map((card) => `
+  <article class="card">
+    <p class="label">${card.label}</p>
+    <p class="value">${card.value}</p>
+    <div class="unit">${card.unit}</div>
+    <p class="take">${card.takeaway}</p>
+    <span class="pill ${card.level}">${card.level_label}</span>
+  </article>
+`).join("");
 
-function pill(feed, row) {
-  const fresh = row && row.freshness_minutes != null ? Math.round(row.freshness_minutes) + " min since newest event at ingest" : "no sample";
-  const lag = row && row.p50_minutes != null ? "p50 lag " + Math.round(row.p50_minutes) + " min" : "lag n/a";
-  return `<span class="pill"><strong>${feed}</strong> ${lag}; ${fresh}</span>`;
+document.getElementById("year-title").textContent = DATA.charts.years.title;
+document.getElementById("year-note").textContent = DATA.charts.years.note;
+document.getElementById("state-title").textContent = DATA.charts.states.title;
+document.getElementById("state-note").textContent = DATA.charts.states.note;
+document.getElementById("seq-title").textContent = DATA.charts.sequence.title;
+document.getElementById("seq-note").textContent = DATA.charts.sequence.note;
+document.getElementById("meaning").innerHTML = DATA.meaning.map((line) => `<li>${line}</li>`).join("");
+document.getElementById("official").innerHTML = DATA.links
+  .filter((link) => link.name !== "How it's built")
+  .map((link) => `<a href="${link.href}">${link.name}</a>`)
+  .join(" · ");
+
+function barChart(target, rows, color, labelKey, valueKey, highlightLast) {
+  const w = 920, h = 240, padL = 28, padB = 32, padT = 16, padR = 8;
+  const max = Math.max(...rows.map((r) => r[valueKey]), 1);
+  const inner = w - padL - padR;
+  const bw = inner / rows.length;
+  const bars = rows.map((row, i) => {
+    const bh = (row[valueKey] / max) * (h - padT - padB);
+    const x = padL + i * bw;
+    const y = h - padB - bh;
+    const fill = highlightLast && i === rows.length - 1 ? "#8f2433" : color;
+    const showValue = row[valueKey] >= 8 || (highlightLast && i === rows.length - 1);
+    const showYear = row[labelKey] % 4 === 2;
+    return `<rect x="${x + 2}" y="${y}" width="${Math.max(bw - 4, 1)}" height="${Math.max(bh, 0)}" fill="${fill}" rx="2"><title>${row[labelKey]}: ${row[valueKey]}</title></rect>
+      ${showValue ? `<text x="${x + bw / 2}" y="${Math.max(y - 4, 12)}" text-anchor="middle" font-size="11" fill="#1c1915">${row[valueKey]}</text>` : ""}
+      ${showYear ? `<text x="${x + bw / 2}" y="${h - 10}" text-anchor="middle" font-size="11" fill="#5e584f">${row[labelKey]}</text>` : ""}`;
+  }).join("");
+  target.innerHTML = `<svg viewBox="0 0 ${w} ${h}" role="img">${bars}</svg>`;
 }
-document.getElementById("pills").innerHTML = [
-  pill("GA", DATA.kpis.ga),
-  pill("USGS", DATA.kpis.usgs),
-  pill("DEA", DATA.kpis.dea),
-].join("");
+barChart(document.getElementById("years"), DATA.charts.years.points, "#2a2158", "year", "count", true);
 
-function card(title, num, sub, badge, kind) {
-  return `<article class="card"><h2>${title}</h2><div class="num">${num}</div><div class="sub">${sub}</div><div style="margin-top:8px"><span class="badge ${kind}">${badge}</span></div></article>`;
-}
-const g7 = DATA.kpis.gippsland_7d || {};
-const g30 = DATA.kpis.gippsland_30d || {};
-const gs = DATA.kpis.gippsland_swarm || {};
-const big = DATA.kpis.largest || {};
-const hot = DATA.kpis.hotspots || {};
-const ga = DATA.kpis.ga || {};
-document.getElementById("kpis").innerHTML = [
-  card("Gippsland M≥2, 7 days", g7.event_count_m2 ?? "—", `median baseline ${fmt(g7.baseline_median)} · p95 ${fmt(g7.baseline_p95)}`, g7.status || "n/a", tone("g7")),
-  card("Gippsland M≥2, 30 days", g30.event_count_m2 ?? "—", `median baseline ${fmt(g30.baseline_median)} · p95 ${fmt(g30.baseline_p95)}`, g30.status || "n/a", tone("g30")),
-  card("Largest event, 30 days", big.magnitude != null ? "M" + Number(big.magnitude).toFixed(1) : "—", `${big.place || ""} · ${fmtTime(big.origin_time)}`, big.sources || "catalogue", "ok"),
-  card("Gippsland since 26 Sep", gs.event_count_m2 ?? "—", `${gs.event_count_all ?? "—"} of any magnitude · b=${gs.b_value != null ? Number(gs.b_value).toFixed(2) : "n/a"} (n=${gs.b_n ?? "—"})`, gs.status || "n/a", tone("swarm")),
-  card("Hotspots, newest 6 hours", hot.detections_6h ?? "—", `${hot.cells_6h ?? "—"} H3 res-6 cells · ${hot.detections_72h ?? "—"} in the 72 h window`, "72 h feed", "warn"),
-  card("GA publication lag", ga.p50_minutes != null ? Math.round(ga.p50_minutes) + " min" : "n/a", "median creation−origin, last 30 days, lags under 7 days", ga.p50_minutes == null ? "no sample" : (ga.p50_minutes <= 15 ? "within 15 min" : "check SLA"), tone("ga")),
-].join("");
+(function states() {
+  const rows = DATA.charts.states.points;
+  const w = 520, h = Math.max(220, rows.length * 32 + 10);
+  const max = Math.max(...rows.map((r) => r.n), 1);
+  const body = rows.map((row, i) => {
+    const y = 8 + i * 32;
+    const bw = (row.n / max) * 300;
+    return `<text x="0" y="${y + 16}" font-size="13" fill="#1c1915">${row.state}</text>
+      <rect x="150" y="${y}" width="${bw}" height="20" rx="4" fill="#e25b1a"><title>${row.state}: ${row.n.toLocaleString()}</title></rect>
+      <text x="${156 + bw}" y="${y + 15}" font-size="12" fill="#5e584f">${row.n.toLocaleString()}</text>`;
+  }).join("");
+  document.getElementById("states").innerHTML = `<svg viewBox="0 0 ${w} ${h}" role="img">${body}</svg>`;
+})();
 
-document.getElementById("headline").textContent = DATA.narrative.headline;
-document.getElementById("points").innerHTML = DATA.narrative.points.map((p) => `<li>${p}</li>`).join("");
+(function sequence() {
+  const rows = DATA.charts.sequence.points;
+  const target = document.getElementById("sequence");
+  if (!rows.length) { target.textContent = "No recent earthquakes in this area."; return; }
+  const w = 520, h = 240, padL = 28, padR = 12, padT = 16, padB = 28;
+  const times = rows.map((r) => Date.parse(r.time));
+  const t0 = Math.min(...times), t1 = Math.max(...times);
+  const mags = rows.map((r) => Number(r.magnitude));
+  const minM = Math.min(...mags) - 0.3, maxM = Math.max(...mags) + 0.4;
+  const dots = rows.map((row) => {
+    const x = padL + ((Date.parse(row.time) - t0) / (t1 - t0 || 1)) * (w - padL - padR);
+    const y = h - padB - ((Number(row.magnitude) - minM) / (maxM - minM)) * (h - padT - padB);
+    const big = Number(row.magnitude) >= 3.4;
+    return `<circle cx="${x}" cy="${y}" r="${4 + Number(row.magnitude)}" fill="#2a2158" fill-opacity="0.9"><title>${row.place}. Magnitude ${Number(row.magnitude).toFixed(1)}. ${row.when}</title></circle>
+      ${big ? `<text x="${x}" y="${y - 14}" text-anchor="middle" font-size="11" fill="#1c1915">${Number(row.magnitude).toFixed(1)}</text>` : ""}`;
+  }).join("");
+  target.innerHTML = `<svg viewBox="0 0 ${w} ${h}" role="img">${dots}</svg>`;
+})();
 
-function fmt(v) { return v == null ? "n/a" : Number(v).toFixed(1); }
-function fmtTime(v) { return v ? String(v).replace("T", " ").slice(0, 16) + " UTC" : ""; }
+const quakeFeatures = {
+  type: "FeatureCollection",
+  features: DATA.map.quakes.map((q) => ({
+    type: "Feature",
+    properties: q,
+    geometry: { type: "Point", coordinates: [q.lon, q.lat] }
+  }))
+};
+const fireFeatures = {
+  type: "FeatureCollection",
+  features: DATA.map.fires.map((f) => ({
+    type: "Feature",
+    properties: f,
+    geometry: { type: "Point", coordinates: [f.lon, f.lat] }
+  }))
+};
 
 const map = new maplibregl.Map({
   container: "map",
   style: {
     version: 8,
     sources: {
-      carto: {
+      osm: {
         type: "raster",
         tiles: ["https://tile.openstreetmap.org/{z}/{x}/{y}.png"],
         tileSize: 256,
         attribution: "© OpenStreetMap contributors"
       }
     },
-    layers: [{ id: "carto", type: "raster", source: "carto" }]
+    layers: [{ id: "osm", type: "raster", source: "osm" }]
   },
-  center: [134.2, -28.2],
-  zoom: 3.3
+  center: DATA.map.australia,
+  zoom: 3.6
 });
 map.addControl(new maplibregl.NavigationControl(), "top-right");
 map.on("load", () => {
-  map.addSource("quakes", { type: "geojson", data: DATA.quake_hexes });
-  map.addSource("hots", { type: "geojson", data: DATA.hot_hexes });
+  map.addSource("fires", { type: "geojson", data: fireFeatures });
+  map.addSource("quakes", { type: "geojson", data: quakeFeatures });
+  const maxFire = Math.max(...DATA.map.fires.map((f) => f.n), 1);
   map.addLayer({
-    id: "hot-fill", type: "fill", source: "hots",
-    paint: { "fill-color": "#d86b2a", "fill-opacity": ["interpolate", ["linear"], ["get", "value"], 1, 0.15, 500, 0.35, 5000, 0.72] }
-  });
-  map.addLayer({
-    id: "quake-fill", type: "fill", source: "quakes",
-    paint: { "fill-color": "#0f6e6b", "fill-opacity": ["interpolate", ["linear"], ["get", "value"], 1, 0.25, 10, 0.55, 40, 0.8] }
-  });
-  const points = {
-    type: "FeatureCollection",
-    features: DATA.quake_points.map((p) => ({
-      type: "Feature",
-      properties: { mag: p.magnitude, place: p.place, time: p.origin_time },
-      geometry: { type: "Point", coordinates: [p.longitude, p.latitude] }
-    }))
-  };
-  map.addSource("gipps", { type: "geojson", data: points });
-  map.addLayer({
-    id: "gipps", type: "circle", source: "gipps",
+    id: "fire-heat",
+    type: "circle",
+    source: "fires",
     paint: {
-      "circle-radius": ["interpolate", ["linear"], ["get", "mag"], 1, 4, 5, 12],
-      "circle-color": "#14324c",
-      "circle-stroke-width": 1,
-      "circle-stroke-color": "#fff"
+      "circle-radius": ["interpolate", ["linear"], ["get", "n"], 8, 6, maxFire, 28],
+      "circle-color": ["interpolate", ["linear"], ["get", "n"], 8, "#f6ad7b", maxFire * 0.45, "#e25b1a", maxFire, "#9a3412"],
+      "circle-opacity": 0.55,
+      "circle-blur": 0.35
     }
   });
-  for (const id of ["quake-fill", "hot-fill", "gipps"]) {
-    map.on("click", id, (event) => {
-      const f = event.features && event.features[0];
-      if (!f) return;
-      const p = f.properties;
-      const html = p.place ? `<strong>M${Number(p.mag).toFixed(1)}</strong><br>${p.place}<br>${fmtTime(p.time)}` : `<strong>${p.label || p.h3}</strong><br>${p.value} events`;
-      new maplibregl.Popup().setLngLat(event.lngLat).setHTML(html).addTo(map);
-    });
+  map.addLayer({
+    id: "quake-dots",
+    type: "circle",
+    source: "quakes",
+    paint: {
+      "circle-radius": ["interpolate", ["linear"], ["get", "magnitude"], 2, 5, 3.5, 9, 5, 16],
+      "circle-color": ["interpolate", ["linear"], ["get", "magnitude"], 2, "#8d82b8", 3.5, "#4c3d86", 5, "#2a2158"],
+      "circle-stroke-width": 1.5,
+      "circle-stroke-color": "#fffdf9",
+      "circle-opacity": 0.95
+    }
+  });
+  map.on("click", "quake-dots", (event) => {
+    const p = event.features[0].properties;
+    const felt = p.felt ? `<br>${p.felt}` : "";
+    new maplibregl.Popup()
+      .setLngLat(event.lngLat)
+      .setHTML(`<strong>Magnitude ${Number(p.magnitude).toFixed(1)}</strong><br>${p.place}<br>${p.when}${felt}`)
+      .addTo(map);
+  });
+  map.on("click", "fire-heat", (event) => {
+    const p = event.features[0].properties;
+    const where = p.place ? ` Near ${p.place}.` : "";
+    new maplibregl.Popup()
+      .setLngLat(event.lngLat)
+      .setHTML(`<strong>Satellite heat</strong><br>About ${Number(p.n).toLocaleString()} detections in this area over the last three days.${where} This is heat, not a confirmed fire.`)
+      .addTo(map);
+  });
+  for (const id of ["quake-dots", "fire-heat"]) {
     map.on("mouseenter", id, () => { map.getCanvas().style.cursor = "pointer"; });
     map.on("mouseleave", id, () => { map.getCanvas().style.cursor = ""; });
   }
 });
-function toggle(id, btn, onClass) {
-  const vis = map.getLayoutProperty(id, "visibility") !== "none";
-  map.setLayoutProperty(id, "visibility", vis ? "none" : "visible");
-  btn.classList.toggle(onClass, !vis);
+
+function toggle(id, button, className) {
+  const hidden = map.getLayoutProperty(id, "visibility") === "none";
+  map.setLayoutProperty(id, "visibility", hidden ? "visible" : "none");
+  button.classList.toggle(className, hidden);
 }
-document.getElementById("btn-quake").onclick = () => toggle("quake-fill", document.getElementById("btn-quake"), "on-quake");
-document.getElementById("btn-hot").onclick = () => toggle("hot-fill", document.getElementById("btn-hot"), "on-hot");
-
-function lineChart(target, rows, yKey, base) {
-  const w = 560, h = 220, pad = 28;
-  if (!rows.length) { target.textContent = "No rows."; return; }
-  const ys = rows.map((r) => Number(r[yKey]) || 0);
-  const max = Math.max(...ys, base || 0, 1);
-  const step = (w - pad * 2) / Math.max(rows.length - 1, 1);
-  const coords = ys.map((y, i) => [pad + i * step, h - pad - (y / max) * (h - pad * 2)]);
-  const d = coords.map((p, i) => (i ? "L" : "M") + p[0].toFixed(1) + " " + p[1].toFixed(1)).join(" ");
-  const baseY = h - pad - ((base || 0) / max) * (h - pad * 2);
-  target.innerHTML = `<svg viewBox="0 0 ${w} ${h}" role="img">
-    <line x1="${pad}" y1="${baseY}" x2="${w - pad}" y2="${baseY}" stroke="#b5812f" stroke-dasharray="4 4"/>
-    <path d="${d}" fill="none" stroke="#0f6e6b" stroke-width="2"/>
-    ${coords.map((p, i) => `<circle cx="${p[0]}" cy="${p[1]}" r="2.5" fill="#0f6e6b"><title>${String(rows[i].week).slice(0,10)}: ${ys[i]}</title></circle>`).join("")}
-  </svg>`;
-}
-lineChart(document.getElementById("ts"), DATA.weekly, "n", DATA.weekly_baseline);
-
-function bars(target, rows, color) {
-  const w = 560, h = 220, pad = 28;
-  if (!rows.length) { target.textContent = "No rows."; return; }
-  const max = Math.max(...rows.map((r) => r.n), 1);
-  const bw = (w - pad * 2) / rows.length;
-  target.innerHTML = `<svg viewBox="0 0 ${w} ${h}" role="img">` + rows.map((r, i) => {
-    const bh = (r.n / max) * (h - pad * 2);
-    const x = pad + i * bw;
-    const y = h - pad - bh;
-    return `<rect x="${x + 1}" y="${y}" width="${Math.max(bw - 2, 1)}" height="${bh}" fill="${color}"><title>M${r.mag_bin}: ${r.n}</title></rect>`;
-  }).join("") + `</svg>`;
-}
-bars(document.getElementById("mf"), DATA.magnitude.filter((r) => r.scope === "south_gippsland_swarm"), "#14324c");
-
-(function swarm() {
-  const rows = DATA.swarm_events;
-  const target = document.getElementById("swarm");
-  if (!rows.length) { target.textContent = "No events."; return; }
-  const w = 560, h = 220, pad = 32;
-  const t0 = Date.parse(rows[0].origin_time);
-  const t1 = Date.parse(rows[rows.length - 1].origin_time) || t0 + 1;
-  const mags = rows.map((r) => Number(r.magnitude));
-  const minM = Math.min(...mags) - 0.2, maxM = Math.max(...mags) + 0.2;
-  const circles = rows.map((r) => {
-    const x = pad + ((Date.parse(r.origin_time) - t0) / (t1 - t0 || 1)) * (w - pad * 2);
-    const y = h - pad - ((Number(r.magnitude) - minM) / (maxM - minM)) * (h - pad * 2);
-    return `<circle cx="${x}" cy="${y}" r="${3 + Number(r.magnitude)}" fill="#0f6e6b" fill-opacity="0.8"><title>${r.place} M${Number(r.magnitude).toFixed(1)} ${fmtTime(r.origin_time)}</title></circle>`;
-  }).join("");
-  target.innerHTML = `<svg viewBox="0 0 ${w} ${h}" role="img">${circles}</svg>`;
-})();
-
-(function states() {
-  const rows = DATA.states.slice(0, 8);
-  const target = document.getElementById("states");
-  const w = 560, h = 220, pad = 36;
-  const max = Math.max(...rows.map((r) => r.detections), 1);
-  const bh = (h - pad * 2) / rows.length;
-  target.innerHTML = `<svg viewBox="0 0 ${w} ${h}" role="img">` + rows.map((r, i) => {
-    const y = pad + i * bh;
-    const bw = (r.detections / max) * (w - 140);
-    return `<text x="0" y="${y + 12}" font-size="12" fill="#1b2430">${r.state}</text>
-      <rect x="110" y="${y}" width="${bw}" height="${bh - 6}" fill="#d86b2a"><title>${r.state}: ${r.detections}; near pop ${r.near_population}; near airport ${r.near_airport}</title></rect>`;
-  }).join("") + `</svg>`;
-})();
-
-function table(rows, cols) {
-  const head = `<tr>${cols.map((c) => `<th>${c[0]}</th>`).join("")}</tr>`;
-  const body = rows.map((r) => `<tr>${cols.map((c) => `<td>${c[1](r)}</td>`).join("")}</tr>`).join("");
-  return `<table>${head}${body}</table>`;
-}
-document.getElementById("tables").innerHTML =
-  `<h3 style="font-size:1rem">Activity versus baseline</h3>` +
-  table(DATA.swarm_table, [
-    ["Scope", (r) => r.scope],
-    ["M≥2", (r) => r.event_count_m2],
-    ["Any mag", (r) => r.event_count_all],
-    ["Median", (r) => fmt(r.baseline_median)],
-    ["p95", (r) => fmt(r.baseline_p95)],
-    ["Status", (r) => `<span class="badge ${r.status === "unusual" ? "bad" : r.status === "elevated" ? "warn" : "ok"}">${r.status}</span>`],
-  ]) +
-  `<h3 style="font-size:1rem;margin-top:14px">Feed latency</h3>` +
-  table(DATA.latency, [
-    ["Feed", (r) => r.feed],
-    ["n", (r) => r.n],
-    ["p50 min", (r) => fmt(r.p50_minutes)],
-    ["p95 min", (r) => fmt(r.p95_minutes)],
-    ["Freshness min", (r) => r.freshness_minutes == null ? "n/a" : Math.round(r.freshness_minutes)],
-  ]);
+document.getElementById("btn-quake").onclick = () => toggle("quake-dots", document.getElementById("btn-quake"), "on-quake");
+document.getElementById("btn-fire").onclick = () => toggle("fire-heat", document.getElementById("btn-fire"), "on-fire");
+document.getElementById("zoom-gipps").onclick = () => map.flyTo({ center: DATA.map.gippsland, zoom: 9.2 });
+document.getElementById("zoom-aus").onclick = () => map.flyTo({ center: DATA.map.australia, zoom: 3.6 });
 </script>
 </body>
 </html>
