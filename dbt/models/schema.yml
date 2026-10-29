@@ -1,0 +1,64 @@
+version: 2
+
+models:
+  - name: fct_earthquake
+    description: Deduplicated earthquake fact. One row per catalogue event after GA/USGS matching.
+    columns:
+      - name: event_id
+        data_tests: [unique, not_null]
+      - name: origin_time
+        data_tests: [not_null]
+      - name: magnitude
+        data_tests: [not_null]
+      - name: latitude
+        data_tests: [not_null]
+      - name: longitude
+        data_tests: [not_null]
+      - name: h3_res4
+        data_tests: [not_null]
+  - name: fct_hotspot
+    description: DEA hotspot detection. A thermal anomaly, not a confirmed fire.
+    columns:
+      - name: hotspot_id
+        data_tests: [unique, not_null]
+      - name: observed_at
+        data_tests: [not_null]
+      - name: confidence
+        data_tests: [not_null]
+      - name: h3_res4
+        data_tests: [not_null]
+  - name: dim_region
+    description: Australian state and territory names from Natural Earth.
+    columns:
+      - name: region_name
+        data_tests: [unique, not_null]
+  - name: dim_h3_cell
+    description: H3 resolution-4 cells that contain at least one quake or hotspot.
+    columns:
+      - name: h3_res4
+        data_tests: [unique, not_null]
+  - name: mart_swarm_activity
+    description: Current counts versus the distribution of equal-length historical windows.
+    columns:
+      - name: scope
+        data_tests: [unique, not_null]
+      - name: status
+        data_tests:
+          - not_null
+          - accepted_values:
+              values: ["typical", "elevated", "unusual", "insufficient_baseline"]
+  - name: mart_hazard_by_h3_week
+    description: Weekly quake (M>=2) and hotspot counts by H3 res-4 cell.
+    columns:
+      - name: h3_res4
+        data_tests: [not_null]
+  - name: mart_feed_latency_freshness
+    description: Publication lag and how old the newest event was at ingest time.
+    columns:
+      - name: feed
+        data_tests: [unique, not_null]
+  - name: mart_magnitude_frequency
+    description: ML-family magnitude bins for the South Gippsland box.
+    columns:
+      - name: mag_bin
+        data_tests: [not_null]

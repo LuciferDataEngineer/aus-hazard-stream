@@ -1,0 +1,65 @@
+[project]
+name = "aus-hazard-stream"
+version = "0.1.0"
+description = "Near real-time natural-hazard streaming lakehouse for Australian earthquakes and bushfire hotspots"
+readme = "README.md"
+requires-python = ">=3.11,<3.13"
+license = { text = "MIT" }
+authors = [{ name = "LuciferDataEngineer" }]
+dependencies = [
+    "aiokafka>=0.12",
+    "dagster>=1.9",
+    "dbt-core>=1.8,<1.9",
+    "dbt-duckdb>=1.8,<1.9",
+    "duckdb>=1.1",
+    "h3>=4.1",
+    "httpx>=0.27",
+    "jsonschema>=4.23",
+    "pyarrow>=17",
+    "pyiceberg[pyarrow,sql-sqlite]>=0.9",
+    "setuptools>=70",
+    "shapely>=2.0",
+    "soda-core>=3.3",
+    "soda-core-duckdb>=3.3",
+]
+
+[dependency-groups]
+dev = [
+    "mypy>=1.13",
+    "pytest>=8.3",
+    "ruff>=0.8",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/aus_hazard"]
+
+[tool.ruff]
+line-length = 120
+target-version = "py312"
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+ignore = ["E501"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["aus_hazard"]
+
+[tool.mypy]
+python_version = "3.12"
+packages = ["aus_hazard"]
+ignore_missing_imports = true
+check_untyped_defs = true
+warn_unused_ignores = false
+pretty = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
+markers = [
+    "integration: optional test that needs Docker/Redpanda",
+]

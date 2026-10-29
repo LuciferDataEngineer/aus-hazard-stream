@@ -1,0 +1,39 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/LuciferDataEngineer/aus-hazard-stream/contracts/hotspot_event.v1.json",
+  "title": "HotspotEvent",
+  "description": "Version 1 contract for a Digital Earth Australia satellite hotspot detection. A hotspot is a thermal anomaly, not a confirmed bushfire.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "hotspot_id",
+    "source",
+    "observed_at",
+    "latitude",
+    "longitude",
+    "confidence",
+    "version",
+    "ingested_at"
+  ],
+  "properties": {
+    "schema_version": { "type": "integer", "const": 1 },
+    "hotspot_id": { "type": "string", "minLength": 3 },
+    "source": { "type": "string", "enum": ["dea"] },
+    "source_event_id": { "type": "string" },
+    "observed_at": { "type": "string", "format": "date-time" },
+    "latitude": { "type": "number", "minimum": -90, "maximum": 90 },
+    "longitude": { "type": "number", "minimum": -180, "maximum": 180 },
+    "temp_kelvin": { "type": ["number", "null"] },
+    "power": { "type": ["number", "null"] },
+    "confidence": { "type": "integer", "minimum": 0, "maximum": 100 },
+    "state": { "type": ["string", "null"] },
+    "satellite": { "type": ["string", "null"] },
+    "sensor": { "type": ["string", "null"] },
+    "algorithm": { "type": ["string", "null"] },
+    "processed_at": { "type": ["string", "null"], "format": "date-time" },
+    "loaded_at": { "type": ["string", "null"], "format": "date-time" },
+    "version": { "type": "integer" },
+    "ingested_at": { "type": "string", "format": "date-time" }
+  }
+}

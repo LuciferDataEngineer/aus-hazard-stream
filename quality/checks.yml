@@ -1,0 +1,22 @@
+checks for fct_earthquake:
+  - row_count > 0
+  - missing_count(event_id) = 0
+  - duplicate_count(event_id) = 0
+  - min(magnitude) >= -1
+  - max(magnitude) < 10
+  - missing_count(h3_res4) = 0
+
+checks for fct_hotspot:
+  - row_count > 0
+  - missing_count(hotspot_id) = 0
+  - duplicate_count(hotspot_id) = 0
+  - min(confidence) >= 0
+  - max(confidence) <= 100
+
+checks for mart_swarm_activity:
+  - row_count > 0
+  - missing_count(scope) = 0
+  - duplicate_count(scope) = 0
+
+checks for mart_feed_latency_freshness:
+  - row_count = 3

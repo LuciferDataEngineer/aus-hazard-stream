@@ -1,0 +1,83 @@
+{
+  "project": "aus-hazard-stream",
+  "created_at": "2026-10-29T10:36:13Z",
+  "note": "Snapshot of keyless public feeds. Rebuild with `make backfill`. CI replays these files and does not call the network.",
+  "files": [
+    {
+      "path": "data/snapshots/usgs_earthquakes.parquet",
+      "source_url": "https://earthquake.usgs.gov/fdsnws/event/1/query?format=geojson&minlatitude=-45.0&maxlatitude=-9.0&minlongitude=110.0&maxlongitude=160.0&starttime=2006-01-01&endtime=2026-10-30&minmagnitude=2.0&orderby=time",
+      "licence": "Public domain (U.S. Geological Survey)",
+      "rows": 3764,
+      "bytes": 221603,
+      "sha256": "df74d23bf6623bb63189cd1855d0979cf2b2e285d0886b035dbaca96a0d9044b",
+      "fetched_at": "2026-10-29T10:36:13Z",
+      "free": true,
+      "api_key": false,
+      "publisher": "U.S. Geological Survey",
+      "dataset": "FDSN Event Web Service, Australian bounding box, M>=2, 2006-01-01 to 2026-10-30",
+      "coverage": "lat -45 to -9, lon 110 to 160"
+    },
+    {
+      "path": "data/snapshots/ga_earthquakes.parquet",
+      "source_url": "https://earthquakes.ga.gov.au/geoserver/earthquakes/wfs?service=WFS&version=2.0.0&request=GetFeature&typeNames=earthquakes%3Aearthquakes&outputFormat=application%2Fjson&count=2000&startIndex=12000&sortBy=earthquake_id&CQL_FILTER=located_in_australia%3D%27Y%27+AND+origin_time+%3E%3D+%272006-01-01T00%3A00%3A00Z%27+AND+origin_time+%3C+%272026-10-30T00%3A00%3A00Z%27",
+      "licence": "CC BY 4.0 (Commonwealth of Australia / Geoscience Australia)",
+      "rows": 12625,
+      "bytes": 763494,
+      "sha256": "912171a973b03e0d1745e7fda05942249aa136cb00cd0016e21e1753bbe81c7a",
+      "fetched_at": "2026-10-29T10:36:13Z",
+      "free": true,
+      "api_key": false,
+      "publisher": "Geoscience Australia",
+      "dataset": "earthquakes:earthquakes WFS, located_in_australia=Y, 2006-01-01 to 2026-10-30",
+      "coverage": "events GA flags as located in Australia"
+    },
+    {
+      "path": "data/snapshots/dea_hotspots.parquet",
+      "source_url": "https://hotspots.dea.ga.gov.au/geoserver/public/ows?service=WFS&version=2.0.0&request=GetFeature&typeNames=public%3Ahotspots_three_days&outputFormat=application%2Fjson&count=4000&startIndex=156000&sortBy=id",
+      "licence": "CC BY 4.0 (Commonwealth of Australia / Geoscience Australia). BRIGHT/Himawari algorithm attribution: Engel, Jones and Reinke.",
+      "rows": 157822,
+      "bytes": 2271886,
+      "sha256": "a60cb0142ddb32b3b3369caf2db9b45681994da4ecb682c8347d4b6a791852cc",
+      "fetched_at": "2026-10-29T10:36:13Z",
+      "free": true,
+      "api_key": false,
+      "publisher": "Digital Earth Australia / Geoscience Australia",
+      "dataset": "public:hotspots_three_days WFS (rolling ~72 hour public window)",
+      "coverage": "Australia, all satellites on the public layer at fetch time"
+    },
+    {
+      "path": "data/reference/au_states.geojson",
+      "source_url": "https://naciscdn.org/naturalearth/50m/cultural/ne_50m_admin_1_states_provinces.zip",
+      "licence": "Public domain (Natural Earth)",
+      "rows": 9,
+      "sha256": "f3d31cb45f1a0218b08e7ec2fbc1bfa3fbbf163b78bd0259f7c486679194d9fc",
+      "bytes": 33869,
+      "fetched_at": "2026-10-29T10:36:13Z",
+      "free": true,
+      "api_key": false
+    },
+    {
+      "path": "data/reference/populated_places.parquet",
+      "source_url": "https://naciscdn.org/naturalearth/10m/cultural/ne_10m_populated_places.zip",
+      "licence": "Public domain (Natural Earth)",
+      "rows": 138,
+      "sha256": "a813d039013187d4ae78813d4b6f7b551d901f3d36db6da5118aaa96f682da6f",
+      "bytes": 5461,
+      "fetched_at": "2026-10-29T10:36:13Z",
+      "free": true,
+      "api_key": false
+    },
+    {
+      "path": "data/reference/airports.parquet",
+      "source_url": "https://davidmegginson.github.io/ourairports-data/airports.csv",
+      "licence": "Public domain (OurAirports)",
+      "rows": 193,
+      "sha256": "0a3ee8d7372cb0ae2d02c4641f84c803c310e979503590c459cec20074334a0d",
+      "bytes": 9854,
+      "fetched_at": "2026-10-29T10:36:13Z",
+      "free": true,
+      "api_key": false
+    }
+  ],
+  "errors": []
+}

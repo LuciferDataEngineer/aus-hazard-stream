@@ -1,0 +1,12 @@
+aus_hazard:
+  target: dev
+  outputs:
+    dev:
+      type: duckdb
+      path: "{{ env_var('AUS_HAZARD_ROOT') }}/data/analytics.duckdb"
+      schema: main
+      threads: 4
+      extensions:
+        - spatial
+      settings:
+        geometry_always_xy: true
