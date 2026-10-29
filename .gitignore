@@ -8,6 +8,7 @@ __pycache__/
 logs/
 dbt/target/
 dbt/logs/
+dbt/.user.yml
 dbt/dbt_packages/
 data/analytics.duckdb
 data/analytics.duckdb.wal
